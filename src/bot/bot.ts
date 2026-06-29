@@ -684,7 +684,7 @@ bot.on("message", async (msg) => {
     const chatId = msg.chat.id;
     const user = getOrCreateUser(userId, msg.from.username, msg.from.first_name);
     const state = getUserState(userId);
-    const text = (msg.text ?? "").trim();
+    const text = (msg.text ?? msg.caption ?? "").trim();
 
     // ── وضعیت‌های ادمین ──────────────────────────────────────────────────────
     if (userId === ADMIN_ID) {
