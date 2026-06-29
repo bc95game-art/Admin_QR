@@ -1,4 +1,4 @@
-import { readFileSync, writeFileSync, existsSync } from "fs";
+import { readFileSync, writeFileSync, existsSync, renameSync } from "fs";
 import { join } from "path";
 import { logger } from "../lib/logger.js";
 
@@ -27,9 +27,11 @@ interface DB {
 }
 
 const DB_PATH = join(process.cwd(), "bot_db.json");
+const DB_TMP_PATH = DB_PATH + ".tmp";
 
 let _dbCache: DB | null = null;
 let _dirtyTimer: ReturnType<typeof setTimeout> | null = null;
+let _pendingFlush = false;
 
 function loadDB(): DB {
   if (_dbCache) return _dbCache;
@@ -47,18 +49,43 @@ function loadDB(): DB {
   }
 }
 
-function saveDB(db: DB): void {
+/** Atomic write: write to .tmp then rename to target */
+function flushToDisk(db: DB): void {
+  try {
+    writeFileSync(DB_TMP_PATH, JSON.stringify(db, null, 2), "utf-8");
+    renameSync(DB_TMP_PATH, DB_PATH);
+  } catch (e) {
+    logger.error({ e }, "saveDB atomic write error");
+  }
+}
+
+function saveDB(db: DB, immediate = false): void {
   _dbCache = db;
+  if (immediate) {
+    // For critical state transitions (deposits, withdrawals, bonus activation)
+    if (_dirtyTimer) { clearTimeout(_dirtyTimer); _dirtyTimer = null; }
+    flushToDisk(db);
+    _pendingFlush = false;
+    return;
+  }
+  _pendingFlush = true;
   if (_dirtyTimer) clearTimeout(_dirtyTimer);
   _dirtyTimer = setTimeout(() => {
-    try {
-      writeFileSync(DB_PATH, JSON.stringify(db, null, 2), "utf-8");
-    } catch (e) {
-      logger.error({ e }, "saveDB write error");
+    if (_pendingFlush && _dbCache) {
+      flushToDisk(_dbCache);
+      _pendingFlush = false;
     }
     _dirtyTimer = null;
   }, 200);
 }
+
+// Flush on process exit to avoid data loss
+process.on("SIGTERM", () => {
+  if (_pendingFlush && _dbCache) flushToDisk(_dbCache);
+});
+process.on("SIGINT", () => {
+  if (_pendingFlush && _dbCache) flushToDisk(_dbCache);
+});
 
 function makeRandomCode(length: number, prefix = ""): string {
   const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -138,12 +165,12 @@ export function getOrCreateUser(
   return db.users[key]!;
 }
 
-export function updateUser(userId: number, updates: Partial<UserData>): void {
+export function updateUser(userId: number, updates: Partial<UserData>, immediate = false): void {
   const db = loadDB();
   const key = String(userId);
   if (db.users[key]) {
     db.users[key] = { ...db.users[key]!, ...updates };
-    saveDB(db);
+    saveDB(db, immediate);
   }
 }
 
@@ -175,7 +202,7 @@ export function recordReferralDeposit(referrerId: number): void {
   const u = db.users[key];
   if (u) {
     u.referralDeposits = (u.referralDeposits ?? 0) + 1;
-    saveDB(db);
+    saveDB(db, true);
   }
 }
 
@@ -186,7 +213,7 @@ export function getAllUsers(): UserData[] {
 export function deleteUser(userId: number): void {
   const db = loadDB();
   delete db.users[String(userId)];
-  saveDB(db);
+  saveDB(db, true);
 }
 
 export function generateLicenseCode(): string {

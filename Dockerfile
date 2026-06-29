@@ -1,9 +1,9 @@
 FROM node:20-alpine AS builder
 WORKDIR /app
 
-# Install dependencies
-COPY package.json ./
-RUN npm install --frozen-lockfile
+# Install dependencies (npm ci for reproducible installs)
+COPY package.json package-lock.json ./
+RUN npm ci
 
 # Copy source and build
 COPY tsconfig.json build.mjs ./
@@ -17,8 +17,8 @@ WORKDIR /app
 ENV NODE_ENV=production
 
 # Only install production deps
-COPY package.json ./
-RUN npm install --omit=dev --frozen-lockfile
+COPY package.json package-lock.json ./
+RUN npm ci --omit=dev
 
 # Copy build output
 COPY --from=builder /app/dist ./dist

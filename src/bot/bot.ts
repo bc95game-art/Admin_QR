@@ -199,6 +199,8 @@ bot.onText(/\/start(?:\s+(.+))?/, async (msg, match) => {
 // ─── /admin ───────────────────────────────────────────────────────────────────
 bot.onText(/\/admin/, async (msg) => {
   try {
+    // Only allow admin in private chat to prevent leaking data in groups
+    if (msg.chat.type !== "private") return;
     if (msg.from!.id !== ADMIN_ID) {
       await safeSend(msg.chat.id, "♦️ خارج از محدوده مشخص شده ♦️");
       return;
@@ -452,7 +454,7 @@ bot.on("callback_query", async (query) => {
         return;
       }
       const giftCode = generateGiftCode();
-      updateUser(userId, { withdrawalCompleted: true });
+      updateUser(userId, { withdrawalCompleted: true }, true);
       await safeSend(chatId,
         `🎊 تراکنش برداشت با موفقیت تکمیل شد.\n\n💰 مبلغ کد هدیه: ۶۰۰ دلار\n🎁 کد هدیه شما: <code>${esc(giftCode)}</code>\n\n🟢 تاریخ فعال‌سازی: هم‌اکنون\n🔴 تاریخ انقضا: ۴ ماه پس از دریافت\n\n🌐 روش استفاده:\n۱. به وب‌سایت https://Saraf.App مراجعه نمایید.\n۲. به بخش «🎁 دریافت هدیه» وارد شوید.\n۳. کد هدیه خود را وارد کنید.\n۴. معادل ریالی مبلغ به حساب شما افزوده خواهد شد.\n\n💡 امکان تبدیل به ریال یا سرمایه‌گذاری روی ارزهای دیجیتال فراهم است.`,
         { ...HTML, reply_markup: backKb });
@@ -637,7 +639,7 @@ bot.on("callback_query", async (query) => {
         return;
       }
       const code = generateLicenseCode();
-      updateUser(tid, { deposited: true, licenseCode: code });
+      updateUser(tid, { deposited: true, licenseCode: code }, true);
       if (tu.referredBy) {
         recordReferralDeposit(tu.referredBy);
         try {
@@ -663,7 +665,7 @@ bot.on("callback_query", async (query) => {
       const parts = data.replace("admin_approve_withdraw_", "").split("_COIN_");
       const tid = Number(parts[0]!);
       const coin = parts[1] ?? "";
-      updateUser(tid, { withdrawalCompleted: true });
+      updateUser(tid, { withdrawalCompleted: true }, true);
       await safeSend(tid,
         `🎉 تبریک! برداشت شما با موفقیت انجام شد.\n\n💰 مبلغ: ۶۰۰ دلار\n🪙 ارز: ${COIN_LABELS[coin] ?? coin}\n\nمبلغ به زودی به آدرس کیف پول شما واریز می‌گردد.`,
         { reply_markup: backKb });
@@ -708,7 +710,7 @@ bot.on("message", async (msg) => {
           if (!u) { await safeSend(chatId, `❌ کاربری با آیدی ${tid} یافت نشد.`); return; }
           if (u.deposited) { await safeSend(chatId, `⚠️ قبلاً تأیید شده. لایسنس: ${u.licenseCode ?? "-"}`); return; }
           const code = generateLicenseCode();
-          updateUser(tid, { deposited: true, licenseCode: code });
+          updateUser(tid, { deposited: true, licenseCode: code }, true);
           if (u.referredBy) {
             recordReferralDeposit(u.referredBy);
             try { await bot.sendMessage(u.referredBy, `🎉 دوست شما «${u.firstName ?? u.userId}» واریز موفق انجام داد!\n💰 ۲۵٪ پاداش به حساب صراف شما اضافه خواهد شد.`); } catch { }
@@ -834,7 +836,7 @@ bot.on("message", async (msg) => {
       }
       if (text === fresh.licenseCode) {
         setUserState(userId, "idle");
-        updateUser(userId, { bonusActivated: true });
+        updateUser(userId, { bonusActivated: true }, true);
         await safeSend(chatId,
           `✅ کد لایسنس صحیح می‌باشد.\n\n🎊 تبریک! جایزه ۵۰۰ دلاری با موفقیت برای شما فعال گردید.\n\nاکنون می‌توانید بلافاصله نسبت به برداشت آن اقدام نمایید. 💰`,
           { reply_markup: backKb });
