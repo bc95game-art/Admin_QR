@@ -1,34 +1,33 @@
 name: CI
 
-  on:
-    push:
-      branches: [main, master]
-    pull_request:
-      branches: [main, master]
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
 
-  jobs:
-    build:
-      runs-on: ubuntu-latest
+jobs:
+  build:
+    runs-on: ubuntu-latest
 
-      steps:
-        - name: Checkout
-          uses: actions/checkout@v4
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
 
-        - name: Setup Node.js 24
-          uses: actions/setup-node@v4
-          with:
-            node-version: "24"
-            cache: "npm"
+      - name: Setup Node.js 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: "npm"
 
-        - name: Install dependencies
-          run: npm ci
+      - name: Install dependencies
+        run: npm ci
 
-        - name: Type check
-          run: npm run typecheck
+      - name: Type check
+        run: npm run typecheck
 
-        - name: Build
-          run: npm run build
+      - name: Build
+        run: npm run build
 
-        - name: Verify build output
-          run: test -f dist/index.mjs && echo "Build OK"
-  
+      - name: Verify build output
+        run: test -f dist/index.mjs && echo "Build OK"
