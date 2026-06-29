@@ -13,4 +13,7 @@ services:
     ports:
       - "3000:3000"
     volumes:
+      # Persist the JSON database across container restarts.
+      # The host file MUST exist as a file before running docker-compose up.
+      # Run: touch bot_db.json   (if it doesn't exist yet)
       - ./bot_db.json:/app/bot_db.json
