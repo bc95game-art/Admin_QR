@@ -1,5 +1,5 @@
-import { readFileSync, writeFileSync, existsSync, renameSync } from "fs";
-import { join } from "path";
+import { readFileSync, writeFileSync, existsSync, renameSync, statSync, mkdirSync } from "fs";
+import { join, dirname } from "path";
 import { logger } from "../lib/logger.js";
 
 export interface UserData {
@@ -35,10 +35,29 @@ let _pendingFlush = false;
 
 function loadDB(): DB {
   if (_dbCache) return _dbCache;
+  // Ensure the parent directory exists
+  const dir = dirname(DB_PATH);
+  if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
+
   if (!existsSync(DB_PATH)) {
     _dbCache = { users: {} };
     return _dbCache;
   }
+
+  // Guard against Docker mounting bot_db.json as a directory (EISDIR)
+  try {
+    const stat = statSync(DB_PATH);
+    if (!stat.isFile()) {
+      logger.error({ DB_PATH }, "loadDB: path exists but is not a file — starting fresh");
+      _dbCache = { users: {} };
+      return _dbCache;
+    }
+  } catch (e) {
+    logger.error({ e }, "loadDB statSync error — starting fresh");
+    _dbCache = { users: {} };
+    return _dbCache;
+  }
+
   try {
     _dbCache = JSON.parse(readFileSync(DB_PATH, "utf-8")) as DB;
     return _dbCache;
@@ -52,6 +71,11 @@ function loadDB(): DB {
 /** Atomic write: write to .tmp then rename to target */
 function flushToDisk(db: DB): void {
   try {
+    // If the path is a directory (Docker EISDIR bug), skip the flush
+    if (existsSync(DB_PATH) && !statSync(DB_PATH).isFile()) {
+      logger.error({ DB_PATH }, "flushToDisk: path is not a file — skipping write");
+      return;
+    }
     writeFileSync(DB_TMP_PATH, JSON.stringify(db, null, 2), "utf-8");
     renameSync(DB_TMP_PATH, DB_PATH);
   } catch (e) {
