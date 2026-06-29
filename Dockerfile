@@ -23,6 +23,10 @@ RUN npm ci --omit=dev
 # Copy build output
 COPY --from=builder /app/dist ./dist
 
+# Create an empty database file so Docker volume mount works correctly.
+# If a host file is mounted over this path, it takes precedence.
+RUN echo '{"users":{}}' > /app/bot_db.json
+
 EXPOSE 3000
 
 CMD ["node", "dist/index.mjs"]
